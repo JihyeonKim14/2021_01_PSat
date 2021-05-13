@@ -1,0 +1,298 @@
+---
+title: "1주차 패키지 과제"
+author: "김지현"
+date: '2021 3 9 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chaper1. 전처리
+
+## 문제 0 기본세팅
+```{r}
+library('plyr')
+library('tidyverse')
+library('data.table')
+setwd('C:/Users/82105/OneDrive/바탕 화면/피셋/1주차패키지')
+data <- fread('data.csv')
+```
+## 문제 1 데이터 확인하기
+```{r}
+str(data)
+colSums(is.na(data))
+
+length(unique(data$patient_id))
+
+length(unique(data$sex))
+
+length(unique(data$age))
+
+length(unique(data$country))
+
+length(unique(data$province))
+
+length(unique(data$city))
+
+length(unique(data$confirmed_date))
+
+length(unique(data$state))
+
+```
+## 문제 2-1 
+
+```{r}
+data <- data[complete.cases(data),]
+```
+## 문제 2-2
+
+```{r}
+data<- data[ -c(which(data$sex=="")),]
+data<- data[ -c(which(data$age=="")),]
+data <- data[-c(which(data$city=="")),]
+colSums(is.na(data))
+
+length(unique(data$patient_id))
+
+length(unique(data$sex))
+
+length(unique(data$age))
+
+length(unique(data$country))
+
+length(unique(data$province))
+
+length(unique(data$city))
+
+length(unique(data$confirmed_date))
+
+length(unique(data$state))
+
+```
+## 문제 3
+```{r}
+
+data <- filter(data,country=='Korea')
+data <- select(data,-country)
+
+```
+
+## 문제 4
+```{r}
+data$province[which(data$province=='서울')] <- '서울특별시'
+data$province[which(data$province=='부산')] <- '부산광역시'
+data$province[which(data$province=='대구')] <- '대구광역시'
+data$province[which(data$province=='인천')] <- '인천광역시'
+data$province[which(data$province=='대전')] <- '대전광역시'
+data$province[which(data$province=='세종')] <- '세종특별자치시'
+data$province[which(data$province=='울산')] <- '울산광역시'
+data$province[which(data$province=='제주도')] <- '제주특별자치도'
+```
+
+## 문제 5 
+```{r}
+data$confirmed_date <- as.Date(data$confirmed_date,)
+```
+
+## 문제 6
+```{r}
+data <- data%>% group_by(confirmed_date) %>% mutate(confirmed_number = n())
+```
+
+
+## 문제 7 
+```{r}
+data$wday = ifelse(weekdays(data$confirmed_date) == "토요일"|
+                                        weekdays(data$confirmed_date) == "일요일","주말","주중")
+```
+
+
+## 문제 8
+```{r}
+with(data %>% group_by(age,confirmed_date) %>% tally(), tapply(n,age,summary))
+```
+
+
+# Ch2 시각화
+
+## 문제 1
+
+```{r}
+
+ggplot(data=data ,aes(x=confirmed_date,y=confirmed_number))+geom_line(color='light blue') + ggtitle('코로나 확진자수 추이 \n-국내인기준') +
+  theme(plot.title = element_text(hjust = 0.5,face='bold')) + 
+  geom_point(mapping =aes(x = data$confirmed_date[which.max(data$confirmed_number)], y =data$confirmed_number[which.max(data$confirmed_number)] ), color="blue") +
+  annotate('text',x = data$confirmed_date[which.max(data$confirmed_number)], y=data$confirmed_number[which.max(data$confirmed_number)],label='2020-03-05(144명)',size=3,color='blue')
+
+
+```
+## 문제 1-2
+```{r}
+ggplot(data = data, aes(x=confirmed_date, y=confirmed_number, 
+                            group = province, colour = province))+
+         geom_line()+facet_wrap(~province)
+```
+## 문제 2
+
+```{r}
+data2 <- data %>% group_by(province,state) %>% summarize(confirmed_number=n())
+ggplot(data2,aes(x=reorder(province,confirmed_number,sum),y=confirmed_number,fill=state),color=state,fill=state)+
+  coord_flip()+geom_bar(stat='identity',alpha=0.4) +labs(x='지역',y='확진자수',fill='state')
+  
+  
+  
+  
+  
+```
+## 문제 3
+
+```{r}
+data3 <- data %>% group_by(age,confirmed_date) %>% summarize(confirmed_number=n())
+ggplot(data=data3,aes(x=age,y=confirmed_number,fill=age,group=age))+
+  geom_boxplot(alpha=0.6,width=0.6)+
+  stat_boxplot(geom='errorbar')+labs(x='age',y='일단위 확진자수')+
+  theme_classic()+
+  theme(panel.background = element_rect(fill='white',color='black',linetype='solid'),
+         axis.title.x = element_text(size=10,color='black',face='bold'),
+         axis.title.y = element_text(size=10,color='black',face='bold'),
+         legend.title = element_text(face='bold',size=10),
+         legend.text = element_text(face='bold',size=10),
+         strip.background = element_rect(fill='white',color='black'),
+         strip.text = element_text(face='bold'))
+```
+## 문제 3-2
+```{r}
+result=aov(confirmed_number~age+confirmed_date,data=data3)
+result
+summary(result)
+
+
+```
+ 위 ANOVA 테스트의 귀무가설은 '나이와 확진날짜에 대해 확진자 수는 유의미한 차이가 없다'이다.
+ 대립가설은 '나이와 확진날짜에 대해 확진자 수는 유의미한 차이가 있다'이다.
+ summary의 결과를 봤을 때 age와 confirmed_date의 p-value가 굉장히 작으므로 귀무가설을 기각하기에 충분하다.
+ 따라서 확진자수는 연령대와 확지날짜에 따라 유의미한 차이가 있다는 결론을 낼 수 있다.
+
+# Ch3
+## 문제 1
+```{r}
+library('MASS')
+library('corrplot')
+library('caret')
+library('MLmetrics')
+C <- Boston %>% cor
+corrplot(C, type="upper",method='number')
+```
+
+## 문제 2
+```{r}
+Boston %>%
+  gather(key, val, -medv) %>%
+  ggplot(aes(x = val, y = medv)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = TRUE, col = "lightblue") +
+  facet_wrap(~key, scales = "free") +
+  theme_gray() +
+  ggtitle("Scatter plot of dependent variables vs Median Value (medv)") 
+```
+
+## 문제 3
+
+```{r}
+set.seed(1234)
+
+train_index <- sample(nrow(Boston), nrow(Boston) * 0.80)
+Boston_train <- Boston[train_index, ]
+Boston_test <- Boston[-train_index, ]
+
+```
+
+
+## 문제 3-2
+```{r}
+model <- lm(medv ~ ., data = Boston_train)
+model_summary <- summary(model)
+model_summary
+pred <- predict(model,Boston_test)
+sqrt(mean((Boston_test$medv-pred)^2))
+```
+제가 구한 RMSE 는 5.366352입니다.
+## 문제 3-3 
+
+model_summary의 결과를 보았을때, indus변수와 age변수가 유의미하지 않다는 것을 파악할 수 있습니다. 따라서 두 변수를 제거하면 모델의 RMSE를 낮출 수 있을 것입니다.
+
+## 문제 4 
+
+
+```{r}
+value <- coef(model_summary)[,1] %>% round(2)
+variables <- c('(intercept)',(Boston %>% names())[-which(names(Boston)=='medv')])
+
+coef <- cbind(variables,value)
+coef <- as.data.frame(coef)
+
+
+
+p <- ggplot(data=coef,aes(x=reorder(variables,as.numeric(value) ),y=as.numeric(value)))+
+  geom_bar(stat='identity',fill = 'yellow', alpha=0.4)+
+  coord_flip()+
+  geom_text(aes(label=value),  color="black", size=3.5)+
+  labs(x='intercept and variables',y='value')+
+  theme_classic()
+p + scale_fill_manual(values = c( 'red',rep('yellow',12),'blue'))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+createFolds(nrow(train),k=5)
+
+for (i in 3:5){
+  for (j in 1:5){
+  test_set <- train[j,]
+  train_set <- train[-j,]
+  forest_model <- randomForest(OC~.,data=train,mtry=i,ntree=10)
+  forest_predict <- predict(forest_model,test_set)
+  acc <- Accuracy(forest_predict,test_set$OC)
+  acc_rf[i-2,2] <- confusionMatrix(as.factor(forest_predict),as.factor(test_set$OC))$overall[[1]]
+  }
+}
+acc <- 1:5
+for (j in 1:5){
+  test_set <- train[j,]
+  train_set <- train[-j,]
+  forest_model <- randomForest(OC~.,data=train_set,mtry=i,ntree=10)
+  forest_predict <- predict(forest_model,test_set)
+  acc[j] <- confusionMatrix(as.factor(forest_predict),as.factor(test_set$OC))$overall[[1]]
+  }
+acc
+
+
+
+
+
+
+
+
+
+
+
+
+

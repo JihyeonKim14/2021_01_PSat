@@ -1,0 +1,258 @@
+---
+title: "3주차패키지"
+author: "김지현"
+date: '2021 3 22 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Ch1
+## 문제1 
+```{r}
+library(tidyverse)
+library(data.table)
+library(gridExtra)
+setwd('C:/Users/82105/OneDrive/바탕 화면/피셋/3주차패키지')
+data <- fread('data.csv')
+
+test <- fread('test.csv')
+```
+## 문제 1
+```{r}
+
+f <- function(x){
+  replace(x,is.na(x),mean(x,na.rm=TRUE))
+}
+data$bmi<- data$bmi %>% as.numeric() %>% f() 
+
+```
+## 문제 2
+```{r}
+character_v <- data %>% select_if(is.character) %>% as.data.frame() %>% 
+  lapply(as.factor) %>% as.data.frame()
+data[,c(2,6,7,8,11)] <- character_v
+
+```
+
+## 문제 3 
+```{r}
+data <- data[,-1]
+```
+
+## 문제 4
+```{r}
+
+data1 <- data %>% filter(stroke==1) %>% select(gender,hypertension,heart_disease,ever_married,work_type,Residence_type,smoking_status) %>% gather(key='variables',value='value')
+
+plot1 <-data1 %>% ggplot(aes(x=variables,fill=value))+
+  geom_bar(position='fill',alpha=0.4)+
+  theme_classic()+
+  xlab('variable')+
+  theme(legend.position = 'bottom')+
+  ggtitle('Stroke : 1')+
+  coord_flip()
+
+data0 <- data %>% filter(stroke==0) %>% select(gender,hypertension,heart_disease,ever_married,work_type,Residence_type,smoking_status) %>% gather(key='variables',value='value')
+
+plot2 <- data0 %>% ggplot(aes(x=variables,fill=value))+
+  geom_bar(position='fill',alpha=0.4)+
+  theme_classic()+
+  xlab('variable')+
+  theme(legend.position = 'bottom')+
+  ggtitle('Stroke : 0')+
+  coord_flip()
+
+grid.arrange(plot1,plot2,ncol=2)
+```
+## 문제 5
+```{r}
+data_n1 <- data %>% filter(stroke==1) %>% select(age,avg_glucose_level,bmi) %>% gather(key='variables',value='value')
+plot_n1 <- data_n1 %>% ggplot(aes(x=value,col=variables))+
+  geom_density(alpha=0.4)+
+  theme_classic()+
+  xlab('variable')+
+  theme(legend.position='right')+
+  ggtitle('Stroke: 1')
+
+data_n0 <- data %>% filter(stroke==0) %>% select(age,avg_glucose_level,bmi) %>% gather(key='variables',value='value')
+plot_n0 <- data_n0 %>% ggplot(aes(x=value,col=variables))+
+  geom_density(alpha=0.4)+
+  theme_classic()+
+  xlab('variable')+
+  theme(legend.position='right')+
+  ggtitle('Stroke: 0')
+
+grid.arrange(plot_n1,plot_n0,ncol=2)
+```
+## 문제 6
+
+```{r}
+cate_var <- c('gender','hypertension','heart_disease','ever_married','work_type','Residence_type','smoking_status')
+chi <- rep(NA,7)
+chisquare <- data.frame(cate_var=cate_var,chi=chi)
+
+dataclass <- data %>% select(gender,hypertension,heart_disease,ever_married,work_type,Residence_type,smoking_status)
+dataclass <- as.data.frame(dataclass)
+for (i in 1:7){
+  chi_test <- chisq.test(dataclass[,i],data$stroke)
+  result <- ifelse(chi_test$p.value <0.05,'denied','accept')
+  chisquare$chi[i] <- result
+}
+
+chisquare
+
+
+```
+## 문제 7
+```{r}
+data <- data[,-c(1,7)]
+```
+
+##문제 8
+```{r}
+f <- function(x){
+  replace(x,is.na(x),mean(x,na.rm=TRUE))
+}
+test$bmi<- test$bmi %>% as.numeric() %>% f()
+
+character_v <- test %>% select_if(is.character) %>% as.data.frame() %>% 
+  lapply(as.factor) %>% as.data.frame()
+test[,c(2,6,7,8,11)] <- character_v
+test <- test[,-1]
+test <- test[,-c(1,7)]
+```
+
+# Ch2
+## 문제 0 
+Tree Boosting 계열의 최신 머신러닝 알고리즘.
+CatBoost의 full name은 Categorical Boost로 범주형 변수가 많은 데이터셋에서 예측 성능이 우수하다고 합니다
+높은 예측 성능, 범주형 변수를 자동으로 전처리, 모델 튜닝이 간소화 (범주형 변수를 자동으로 전처리 해주니깐 그 부분에 대해서 따로 튜닝을 할 필요x)
+'max_depth'(트리의 깊이)
+'learning_rate'(Step Size)
+'n_elstimators'(트리생성 개수)
+'eval metric'(평가척도)
+'loss_function'(손실함수)
+
+## 문제 1
+```{r}
+library(catboost)
+library(caret)
+library(MLmetrics)
+logloss_cb <- expand.grid(depth=c(4,6,8),iterations=c(100,200))
+```
+
+## 문제 2
+```{r}
+set.seed(1234)
+cv <- createFolds(data$stroke,k=5)
+start.time <- Sys.time()
+data <- as.data.frame(data)
+for( i in 1:nrow(logloss_cb)){
+  temp_logloss <- NULL
+  for( j in 1:5){
+    idx=cv[[j]]
+    train = data[-idx,]
+    valid = data[idx,]
+    cv_valid <- catboost.load_pool(data=valid[,-9],label=valid[,9])
+    cv_train <- catboost.load_pool(data=train[,-9],label=train[,9])
+    
+    parameter <- list(loss_function='Logloss',logging_level='Silent',random_seed=1234,depth=logloss_cb$depth[i],iterations=logloss_cb$iterations[i])
+    cb_model <- catboost.train(cv_train,params=parameter)
+    cb_pred <- catboost.predict(cb_model,cv_valid,prediction_type='Class')
+    temp_logloss[j] <- LogLoss(cb_pred,data[idx,'stroke'])
+  }
+  logloss_cb[i,'logloss'] <- mean(temp_logloss)
+}
+
+end.time <- Sys.time()
+print(c('총 걸린 시간: ',end.time-start.time))
+
+
+```
+## 문제 3
+```{r}
+logloss_cb[which.min(logloss_cb$logloss),]
+```
+
+## 문제 4 
+```{r}
+test <- as.data.frame(test)
+parameter <- list(loss_function='Logloss',logging_level='Silent',random_seed=1234,depth=logloss_cb$depth[which.min(logloss_cb$logloss)],iterations=logloss_cb$iterations[which.min(logloss_cb$logloss)])
+cv_valid <- catboost.load_pool(data=test[,-9],label=test[,9])
+cv_train <- catboost.load_pool(data=data[,-9],label=data[,9])
+
+cb_model <- catboost.train(cv_train,params=parameter)
+cb_pred <- catboost.predict(cb_model,cv_valid,prediction_type='Class')
+
+temp_logloss <- LogLoss(cb_pred,data[idx,'stroke'])
+temp_logloss
+```
+
+
+
+
+# Ch3
+
+## 문제1
+```{r}
+library(factoextra)
+library(cluster)
+ndata <- data[,c(1,6,7)]
+ndata <- scale(ndata)
+```
+
+
+## 문제 2 
+```{r}
+p1 <-fviz_nbclust(ndata,kmeans,method='wss')
+p2 <-fviz_nbclust(ndata,kmeans,method='silhouette')
+grid.arrange(p1,p2,ncol=2)
+```
+적절한 k값 4입니다.
+
+## 문제 3
+```{r}
+set.seed(1234)
+ndata.km <- ndata %>% kmeans(centers=3,nstart =1,iter.max=30)
+fviz_cluster(ndata.km,data=ndata,geom=c('point','text'))+theme_classic()
+```
+
+
+## 문제 4     
+```{r}
+ndata <- data[,c(1,6,7)]
+ndata <- as.data.frame(ndata)
+ndata$cluster <- ndata.km[["cluster"]]
+
+p1 <- ndata %>% ggplot(aes(x=as.factor(cluster),y=age))+
+  geom_boxplot(aes=0.4,fill=c('#845ec2','#ffc75f','#ff5e78'),color=c('#845ec2','#ffc75f','#ff5e78'),outlier.shape = NA)+
+  theme_classic()+
+  stat_boxplot(geom = 'errorbar',aes=0.8)+
+  xlab('cluster')
+p2 <- ndata %>% ggplot(aes(x=as.factor(cluster),y=avg_glucose_level))+
+  geom_boxplot(aes=0.4,fill=c('#845ec2','#ffc75f','#ff5e78'),color=c('#845ec2','#ffc75f','#ff5e78'),outlier.shape = NA)+
+  theme_classic()+
+  stat_boxplot(geom = 'errorbar',aes=0.8)+
+  xlab('cluster')
+p3 <- ndata %>% ggplot(aes(x=as.factor(cluster),y=bmi))+
+  geom_boxplot(aes=0.4,fill=c('#845ec2','#ffc75f','#ff5e78'),color=c('#845ec2','#ffc75f','#ff5e78'),outlier.shape = NA)+
+  theme_classic()+
+  stat_boxplot(geom = 'errorbar',aes=0.8)+
+  xlab('cluster')
+
+grid.arrange(p1,p2,p3,ncol=3)
+  
+  
+
+```
+
+
+
+
+
+
+
+
+
