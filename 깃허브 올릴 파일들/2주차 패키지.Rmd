@@ -1,0 +1,241 @@
+---
+title: "2주차 패키지"
+author: "김지현"
+date: '2021 3 16 '
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ch1
+## 문제 0 
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(VIM)
+setwd('C:/Users/82105/OneDrive/바탕 화면/피셋/2주차 패키지')
+data <- fread('data.csv')
+```
+## 문제 1 
+
+```{r}
+data <- data %>% select(-ends_with('2'))
+```
+
+## 문제 2 
+
+```{r}
+data %>% aggr(prop=FALSE,numbers=TRUE,col=c('lightyellow','pink'))
+```
+
+## 문제 3-1
+
+```{r}
+f <- function(x){
+  replace(x,is.na(x),mean(x,na.rm=TRUE))
+  }
+numeric_v <- data %>% select_if(is.numeric) %>% as.data.frame() %>% 
+  lapply(f) %>% as.data.frame()
+data <- cbind(data[,1],numeric_v,data[,23])
+
+
+```
+
+## 문제 3-2
+```{r}
+table(data$OC)
+table(data$ownerChange)
+data <- data %>% replace_na(list(OC='open',ownerChange='same'))
+```
+
+## 문제 4
+
+```{r}
+data$OC <- ifelse(data$OC=='open',1,0)
+
+```
+
+## 문제 5
+
+```{r}
+trans_numeric <- lapply(numeric_v,as.numeric) %>% as.data.frame()
+data <-cbind(data[,1], trans_numeric, data[,23]) 
+data %>% str()
+```
+```{r}
+data %>% str()
+```
+
+# Ch 2 
+
+## 문제 1
+```{r}
+library(caret)
+library(MLmetrics)
+library(randomForest)
+set.seed(1234)
+idx=createDataPartition(as.factor(data$OC), p=0.3,times=1,list=FALSE)
+train <- data[-idx,]
+validation <- data[idx,]
+
+
+```
+
+## 문제 2 
+```{r}
+fit <- glm(OC~.,data=train,family=binomial)
+summary(fit)
+pred <- as.numeric(predict(fit,validation,type='response'))
+pred
+pred[which(pred>0.5)] <- 1
+pred[which(pred<0.5)] <- 0
+confusionMatrix(as.factor(pred),as.factor(validation$OC))
+Accuracy(pred,validation$OC)
+```
+## 문제 3
+
+```{r}
+step_vs <- step(fit,direction='both')
+```
+
+
+```{r}
+fit_vs <- glm(OC ~ revenue1 + salescost1 + sga1 + noi1 + noe1 + interest1 + 
+    profit1 + liquidAsset1 + quickAsset1 + receivableS1 + inventoryAsset1 + 
+    nonCAsset1 + tanAsset1 + debt1 + employee1,data=train,family=binomial)
+summary(fit_vs)
+pred_vs <- as.numeric(predict(fit_vs,validation,type='response'))
+pred_vs[which(pred_vs>0.5)] <- 1
+pred_vs[which(pred_vs<0.5)] <- 0
+confusionMatrix(as.factor(pred_vs),as.factor(validation$OC))
+Accuracy(pred_vs,validation$OC)
+```
+
+## 문제 4
+
+```{r}
+
+df <- expand.grid(mtry=c(3,4,5))
+acc <- rep(NA,3)
+acc_rf <- cbind(df, acc)
+```
+
+## 문제 5
+
+```{r}
+idx = createFolds(as.factor(data$OC), k=5)
+
+```
+
+
+```{r}
+train_set <- data[,c('OC','revenue1','salescost1','sga1','noi1','noe1','interest1','profit1','liquidAsset1','quickAsset1','receivableS1','inventoryAsset1','nonCAsset1','tanAsset1','debt1','employee1')]
+
+test_set <- data[,c('OC','revenue1','salescost1','sga1','noi1','noe1','interest1','profit1','liquidAsset1','quickAsset1','receivableS1','inventoryAsset1','nonCAsset1','tanAsset1','debt1','employee1')]
+
+for (i in 1:3){
+  acc_mean <- c()
+  for (j in 1:5){
+  test_set <- data[idx[[j]],]
+  train_set <- data[-idx[[j]],]
+  
+  forest_model <- randomForest(as.factor(OC)~.,data=train_set,mtry=acc_rf$mtry[i],ntree=10)
+  forest_predict <- predict(forest_model,test_set)
+  acc <- Accuracy(forest_predict,test_set$OC)
+  acc_mean <- c(acc_mean, acc)
+  }
+  acc_rf$acc[i] <- mean(acc_mean)
+}
+```
+
+## 문제 6 
+```{r}
+acc_rf$acc[which.max(acc_rf$acc)]
+```
+
+## 문제 7 
+```{r}
+forest_model <- randomForest(as.factor(OC)~.,data=train_set,mtry=acc_rf$mtry[1],ntree=10)
+
+info<-as.data.frame(varImpPlot(forest_model))
+Variable_Name<-rownames(info)
+info$VariableName <- Variable_Name
+info
+ggplot(data=info,aes(x=reorder(VariableName,MeanDecreaseGini),y=MeanDecreaseGini))+
+  coord_flip()+
+  theme_classic()+
+  geom_segment(aes(y=0,xend=VariableName,yend=MeanDecreaseGini),col='pink')+
+  geom_point(col='pink')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Ch3
+## 문제 1
+```{r}
+library(MASS)
+B <- Boston
+idx_b <-createDataPartition(B$crim,p=0.2,times=1,list=FALSE)
+train_b <- Boston[-idx_b,]
+validation_b <- Boston[idx_b,]
+
+```
+
+## 문제 2
+```{r}
+RMSE_rf <- expand.grid(mtry=c(3,4,5),ntree=c(10,100,200),RMSE=NA)
+```
+
+## 문제 3 
+
+```{r}
+for (i in 1:9){
+  RMSE <- c()
+  for (j in 1:5){
+  vlaidation_b<- Boston[idx[[j]],]
+  train_b <- Boston[-idx[[j]],]
+  
+  forest_model <- randomForest(medv~.,data=train_b,
+                               mtry=RMSE_rf$mtry[i],ntree=RMSE_rf$ntree[i])
+  forest_predict <- predict(forest_model,validation_b)
+  RMSE <- RMSE(forest_predict,validation_b$medv)
+  }
+  RMSE_rf$RMSE[i] <- RMSE
+}
+```
+
+## 문제 4 
+```{r}
+RMSE_rf$RMSE[which.min(RMSE_rf$RMSE)]
+```
+## 문제 5
+```{r}
+forest_model <- randomForest(medv~.,data=train_b,
+                               mtry=RMSE_rf$mtry[which.min(RMSE_rf$RMSE)],ntree=RMSE_rf$ntree[which.min(RMSE_rf$RMSE)])
+
+forest_predict <- predict(forest_model,validation_b)
+RMSE <- RMSE(forest_predict,validation_b$medv)
+RMSE
+```
+
+
+
+```
+
+
